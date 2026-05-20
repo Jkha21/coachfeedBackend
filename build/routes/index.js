@@ -12,7 +12,7 @@ const feed_route_1 = __importDefault(require("./feed.route"));
  * @returns router
  */
 const routes = () => {
-    router.use('/api', new feed_route_1.default().getRoutes());
+    router.use('/posts', new feed_route_1.default().getRoutes());
     return router;
 };
 exports.default = routes;

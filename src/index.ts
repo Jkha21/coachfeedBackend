@@ -13,17 +13,19 @@ import Database from './config/database';
 import ErrorHandler from './middlewares/error.middleware';
 import Logger from './config/logger';
 
-import { initSocket } from './config/socket';
+import { initSocket, watchDatabaseChanges } from './config/socket';
 import { disconnectRedis } from './config/redis';
+
+import './models/feed.model';
 
 class App {
   public app: Application;
   public httpServer: HTTPServer;
-  public host: string | number;
   public port: string | number;
-  public api_version: string | number;
+  public host: string;
+  public api_version: string;
+  
   private db = new Database();
-  private logStream = Logger.logStream;
   private logger = Logger.logger;
   public errorHandler = new ErrorHandler();
 
@@ -31,53 +33,65 @@ class App {
     this.app = express();
     this.httpServer = createServer(this.app);
 
-    this.host = process.env.APP_HOST || 'localhost';
+    this.host = (process.env.APP_HOST || 'localhost')
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
+
     this.port = process.env.PORT || process.env.APP_PORT || 5000;
     this.api_version = process.env.API_VERSION || 'v1';
 
     this.initializeMiddleWares();
     this.initializeRoutes();
-    this.initializeDatabase();
     this.initializeSockets();
     this.initializeErrorHandlers();
     this.initializeGracefulShutdown();
-    this.startApp();
+    
+    this.boot();
   }
 
-  public initializeMiddleWares(): void {
+  private initializeMiddleWares(): void {
     this.app.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
       credentials: true
     }));
     this.app.use(helmet());
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(express.json());
-    this.app.use(morgan('combined', { stream: this.logStream }));
+    this.app.use(morgan('combined', { stream: Logger.logStream }));
   }
 
-  public initializeDatabase(): void {
-    this.db.initializeDatabase();
-  }
-
-  public initializeSockets(): void {
+  private initializeSockets(): void {
     initSocket(this.httpServer);
-    this.logger.info('🔌 WebSockets initialized successfully');
   }
 
-  public initializeRoutes(): void {
+  private initializeRoutes(): void {
     this.app.use(`/api/${this.api_version}`, routes());
   }
 
-  public initializeErrorHandlers(): void {
+  private initializeErrorHandlers(): void {
     this.app.use(this.errorHandler.appErrorHandler);
     this.app.use(this.errorHandler.genericErrorHandler);
     this.app.use(this.errorHandler.notFound);
   }
 
-  public initializeGracefulShutdown(): void {
+  private async boot(): Promise<void> {
+    try {
+      await this.db.initializeDatabase();
+      
+      watchDatabaseChanges('Feed');
+      
+      this.httpServer.listen(Number(this.port), this.host, () => {
+        this.logger.info(`🚀 App running at http://${this.host}:${this.port}/api/${this.api_version}/`);
+      });
+    } catch (error) {
+      this.logger.error('💥 Critical boot error encountered:', error);
+      process.exit(1);
+    }
+  }
+
+  private initializeGracefulShutdown(): void {
     const shutdown = async (signal: string) => {
       this.logger.info(`\nℹ️  ${signal} received — shutting down gracefully…`);
-
       this.httpServer.close(async () => {
         try {
           await disconnectRedis();
@@ -94,20 +108,6 @@ class App {
     process.on("SIGTERM", () => shutdown("SIGTERM"));
     process.on("SIGINT", () => shutdown("SIGINT"));
   }
-
-  public startApp(): void {
-    this.httpServer.listen(this.port, () => {
-      this.logger.info(
-        `Server started running at ${this.host}:${this.port}/api/${this.api_version}/`
-      );
-    });
-  }
-
-  public getApp(): Application {
-    return this.app;
-  }
 }
 
-const app = new App();
-
-export default app;
+export default new App();

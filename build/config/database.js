@@ -16,6 +16,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const logger_1 = __importDefault(require("./logger"));
 class Database {
     constructor() {
+        this.logger = logger_1.default.logger;
         this.initializeDatabase = () => __awaiter(this, void 0, void 0, function* () {
             if (mongoose_1.default.connection.readyState === 1) {
                 this.logger.info('Using existing MongoDB connection.');
@@ -26,11 +27,7 @@ class Database {
                 throw new Error('Database connection string is missing.');
             }
             try {
-                yield mongoose_1.default.connect(this.DATABASE, {
-                    bufferCommands: false,
-                    useUnifiedTopology: true,
-                    useNewUrlParser: true,
-                });
+                yield mongoose_1.default.connect(this.DATABASE, { bufferCommands: false });
                 this.logger.info('Connected to the database successfully.');
             }
             catch (error) {
@@ -40,8 +37,7 @@ class Database {
         });
         this.DATABASE = process.env.NODE_ENV === 'test'
             ? (process.env.DATABASE_TEST || '')
-            : (process.env.DATABASE || process.env.MONGODB_URI || '');
-        this.logger = logger_1.default.logger;
+            : (process.env.MONGODB_URI || '');
     }
 }
 exports.default = Database;
