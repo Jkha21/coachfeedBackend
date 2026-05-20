@@ -26,38 +26,44 @@ const error_middleware_1 = __importDefault(require("./middlewares/error.middlewa
 const logger_1 = __importDefault(require("./config/logger"));
 const socket_1 = require("./config/socket");
 const redis_1 = require("./config/redis");
+// Ensure the Feed model is registered before setting up the change stream
 require("./models/feed.model");
 class App {
     constructor() {
         this.db = new database_1.default();
+        this.logStream = logger_1.default.logStream;
         this.logger = logger_1.default.logger;
         this.errorHandler = new error_middleware_1.default();
         this.app = (0, express_1.default)();
         this.httpServer = (0, http_1.createServer)(this.app);
-        this.host = (process.env.APP_HOST || 'localhost')
-            .replace(/^https?:\/\//, '')
-            .replace(/\/$/, '');
+        this.host = process.env.APP_HOST || 'localhost';
         this.port = process.env.PORT || process.env.APP_PORT || 5000;
         this.api_version = process.env.API_VERSION || 'v1';
         this.initializeMiddleWares();
         this.initializeRoutes();
+        this.initializeDatabase();
         this.initializeSockets();
         this.initializeErrorHandlers();
         this.initializeGracefulShutdown();
-        this.boot();
+        this.startApp();
     }
     initializeMiddleWares() {
         this.app.use((0, cors_1.default)({
-            origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+            origin: process.env.FRONTEND_URL || 'http://localhost:3001',
             credentials: true
         }));
         this.app.use((0, helmet_1.default)());
         this.app.use(express_1.default.urlencoded({ extended: true }));
         this.app.use(express_1.default.json());
-        this.app.use((0, morgan_1.default)('combined', { stream: logger_1.default.logStream }));
+        this.app.use((0, morgan_1.default)('combined', { stream: this.logStream }));
+    }
+    initializeDatabase() {
+        this.db.initializeDatabase();
     }
     initializeSockets() {
         (0, socket_1.initSocket)(this.httpServer);
+        (0, socket_1.watchDatabaseChanges)('Feed');
+        this.logger.info('🔌 WebSockets initialized successfully');
     }
     initializeRoutes() {
         this.app.use(`/api/${this.api_version}`, (0, routes_1.default)());
@@ -66,21 +72,6 @@ class App {
         this.app.use(this.errorHandler.appErrorHandler);
         this.app.use(this.errorHandler.genericErrorHandler);
         this.app.use(this.errorHandler.notFound);
-    }
-    boot() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield this.db.initializeDatabase();
-                (0, socket_1.watchDatabaseChanges)('Feed');
-                this.httpServer.listen(Number(this.port), this.host, () => {
-                    this.logger.info(`🚀 App running at http://${this.host}:${this.port}/api/${this.api_version}/`);
-                });
-            }
-            catch (error) {
-                this.logger.error('💥 Critical boot error encountered:', error);
-                process.exit(1);
-            }
-        });
     }
     initializeGracefulShutdown() {
         const shutdown = (signal) => __awaiter(this, void 0, void 0, function* () {
@@ -101,5 +92,14 @@ class App {
         process.on("SIGTERM", () => shutdown("SIGTERM"));
         process.on("SIGINT", () => shutdown("SIGINT"));
     }
+    startApp() {
+        this.httpServer.listen(this.port, () => {
+            this.logger.info(`Server started running at ${this.host}:${this.port}/api/${this.api_version}/`);
+        });
+    }
+    getApp() {
+        return this.app;
+    }
 }
-exports.default = new App();
+const app = new App();
+exports.default = app;
