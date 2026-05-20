@@ -8,7 +8,7 @@ class Database {
   constructor() {
     this.DATABASE = process.env.NODE_ENV === 'test'
       ? (process.env.DATABASE_TEST || '')
-      : (process.env.DATABASE || process.env.MONGODB_URI || '');
+      : (process.env.MONGODB_URI || '');
 
     this.logger = Logger.logger;
   }
@@ -26,8 +26,9 @@ class Database {
 
     try {
       await mongoose.connect(this.DATABASE, {
-        bufferCommands: false
-      });
+        bufferCommands: false,
+      } as mongoose.ConnectOptions);
+
       this.logger.info('Connected to the database successfully.');
     } catch (error) {
       this.logger.error('Could not connect to the database.', error);

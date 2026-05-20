@@ -46,7 +46,7 @@ class App {
 
   public initializeMiddleWares(): void {
     this.app.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: process.env.FRONTEND_URL || 'http://localhost:3001',
       credentials: true
     }));
     this.app.use(helmet());
@@ -98,7 +98,7 @@ class App {
   public startApp(): void {
     this.httpServer.listen(this.port, () => {
       this.logger.info(
-        `Server started running at http://${this.host}:${this.port}/api/${this.api_version}/`
+        `Server started running at ${this.host}:${this.port}/api/${this.api_version}/`
       );
     });
   }

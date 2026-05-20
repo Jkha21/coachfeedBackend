@@ -1,7 +1,7 @@
 import express, { IRouter } from 'express';
 const router = express.Router();
 
-import userRoute from './user.route';
+import feedRoute from './feed.route';
 
 /**
  * Function contains Application routes
@@ -9,10 +9,7 @@ import userRoute from './user.route';
  * @returns router
  */
 const routes = (): IRouter => {
-  router.get('/', (req, res) => {
-    res.json('Welcome');
-  });
-  router.use('/users', new userRoute().getRoutes());
+  router.use('/posts', new feedRoute().getRoutes());
 
   return router;
 };
